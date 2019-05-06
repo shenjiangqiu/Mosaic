@@ -34,7 +34,7 @@ INTERSIM ?= intersim2
 
 include version_detection.mk
 
-ifeq ($(GPGPUSIM_CONFIG), gcc-$(CC_VERSION)/cuda-$(CUDART_VERSION)/debug)
+ifeq ($(GPGPUSIM_CONFIG), debug)
 	export DEBUG=1
 else
 	export DEBUG=0

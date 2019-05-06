@@ -57,8 +57,8 @@ elif [ "$USER" == "rossbach" ]; then
    export NVIDIA_CUDA_SDK_LOCATION=/home/vance/Documents/NVIDIA_GPU_Computing_SDK-4.0
 else
    #Modify these two lines
-   export CUDAHOME=/usr/local/cuda
-   export NVIDIA_CUDA_SDK_LOCATION=/usr/local/cuda-samples
+   export CUDAHOME=/home/jshen2/jshen2/cuda-4.0
+   export NVIDIA_CUDA_SDK_LOCATION=/home/jshen2/jshen2/gpucomputingsdk
 fi
 
 export LD_LIBRARY_PATH=$CUDAHOME/lib:$CUDAHOME/lib64:$LD_LIBRARY_PATH:/usr/local/cuda/lib

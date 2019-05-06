@@ -6,11 +6,11 @@ CUFILES		:= LUH/lulesh.cu SPMV/main_spmv.cu TRD/Triad.cu SCAN/Scan.cu CFD/euler3
     CONS/convolutionSeparable.cu BP/backprop_cuda.cu SAD/main_sad.cu LUD/cuda/lud.cu \
     SRAD/main_srad.cu FFT/fft.cu LPS/laplace3d.cu FWT/fastWalshTransform.cu NN/NN.cu NW/needle.cu \
     SCP/scalarProd.cu JPEG/dct8x8.cu BFS2/bfs.cu GUPS/CudaRandomAccess.cu HISTO/histogram256.cu \
-    3DS/threeDS.cu MM/mm.cu HS/hotspot.cu BLK/BlackScholes.cu
+    3DS/threeDS.cu MM/mm.cu HS/hotspot.cu BLK/BlackScholes.cu main.cu
 # MUM/mummergpu.cu MUM/common.cu
 
 # C/C++ source files (compiled with gcc / c++)
-CPPFILES		:= main.cpp SPMV/gpu_info.cpp SPMV/file.cpp SC/streamcluster_cuda_cpu.cpp \
+CPPFILES		:=  SPMV/gpu_info.cpp SPMV/file.cpp SC/streamcluster_cuda_cpu.cpp \
     QTC/libdata.cpp RAY/EasyBMP.cpp RAY/makebmp.cpp CONS/main.cpp \
     CONS/convolutionSeparable_gold.cpp BP/backprop.cpp FWT/fastWalshTransform_gold.cpp \
     LPS/laplace3d_gold.cpp SCP/scalarProd_gold.cpp JPEG/BmpUtil.cpp JPEG/DCT8x8_Gold.cpp \
