@@ -42,7 +42,7 @@ ifeq ($(CREATE_LIBRARY),1)
 INCPATH += -I$(GPGPUSIM_ROOT)/src/gpgpu-sim/
 endif
 
-CPPFLAGS += -Wall $(INCPATH) $(DEFINE) -std=c++11
+CPPFLAGS += -Wall $(INCPATH) $(DEFINE) 
 ifneq ($(DEBUG),1)
 CPPFLAGS += -O3
 endif
@@ -50,6 +50,8 @@ CPPFLAGS += -g
 CPPFLAGS += -fPIC
 LFLAGS +=
 
+CFLAGS:=$(CPPFLAGS)
+CPPFLAGS+=-std=c++11
 
 ifeq ($(SIM_OBJ_FILES_DIR),)
 OBJDIR := obj
@@ -127,10 +129,12 @@ endif
 
 
 ${LEX_OBJS}: lex.yy.c y.tab.h
-	$(CC) $(CPPFLAGS) -c $< -o $@
+	echo $(CFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 ${YACC_OBJS}: y.tab.c y.tab.h
-	$(CC) $(CPPFLAGS) -c $< -o $@
+	echo $(CFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 ${OBJDIR}/%.o: %.cpp 
 	$(CXX) $(CPPFLAGS) -c $< -o $@
