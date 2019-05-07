@@ -1506,12 +1506,13 @@ void gpgpu_sim::cycle()
     return;
   }
   int clock_mask = next_clock_domain();
-
+  //core load from ICNT queue
   if (clock_mask & CORE) {
     // shader core loading (pop from ICNT into core) follows CORE clock
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
       m_cluster[i]->icnt_cycle();
   }
+  //from memory controller to ICNT
   if (clock_mask & ICNT) {
     // pop from memory controller to interconnect
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
@@ -1532,7 +1533,7 @@ void gpgpu_sim::cycle()
       }
     }
   }
-
+  //Issue the dram command
   if (clock_mask & DRAM) {
     for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
       m_memory_partition_unit[i]->dram_cycle(); // Issue the dram command (scheduler + delay model)
@@ -1544,6 +1545,8 @@ void gpgpu_sim::cycle()
   }
 
   // L2 operations follow L2 clock domain
+  //frome ICNT to L2
+  //L2 fill responce from Dram
   if (clock_mask & L2) {
     m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX].clear();
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
@@ -1563,7 +1566,7 @@ void gpgpu_sim::cycle()
   if (clock_mask & ICNT) {
     icnt_transfer();
   }
-
+  //core send request 
   if (clock_mask & CORE) {
     // L1 cache + shader core pipeline stages
     m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].clear();
@@ -1614,11 +1617,11 @@ void gpgpu_sim::cycle()
       gpgpu_debug();
 
     // McPAT main cycle (interface with McPAT)
-#ifdef GPGPUSIM_POWER_MODEL
+    #ifdef GPGPUSIM_POWER_MODEL
     if (m_config.g_power_simulation_enabled) {
       //mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper, m_power_stats, m_config.gpu_stat_sample_freq, gpu_tot_sim_cycle, gpu_sim_cycle, gpu_tot_sim_insn, gpu_sim_insn);
     }
-#endif
+    #endif
 
     issue_block2core();
 

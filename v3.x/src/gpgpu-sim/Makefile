@@ -32,9 +32,9 @@ DEBUG?=0
 TRACE?=0
 
 ifeq ($(DEBUG),1)
-	CXXFLAGS = -Wall -DDEBUG
+	CXXFLAGS = -Wall -DDEBUG -std=c++11
 else
-	CXXFLAGS = -Wall
+	CXXFLAGS = -Wall -std=c++11
 endif
 
 ifeq ($(TRACE),1)
@@ -58,7 +58,7 @@ ifneq ($(GPGPUSIM_POWER_MODEL),)
 	POWER_FLAGS = -I$(GPGPUSIM_POWER_MODEL) -DGPGPUSIM_POWER_MODEL
 endif
 
-OPTFLAGS += -g3 -fPIC
+OPTFLAGS += -g3 -fPIC -std=c++11
 
 CPP = g++ $(SNOW)
 OEXT = o
