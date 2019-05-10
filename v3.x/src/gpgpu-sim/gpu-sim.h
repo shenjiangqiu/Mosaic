@@ -258,9 +258,9 @@ struct memory_config {
       //If we want tlb_level tied to va_mask
       tlb_levels = 0;
       std::string mask(va_mask);
-      for(int i=0;i<mask.size();i++)
+      for(unsigned i=0;i<mask.size();i++)
       {
-          if(tlb_levels < (mask[i] - '0'))
+          if(tlb_levels < (unsigned)(mask[i] - '0'))
               tlb_levels = mask[i] - '0';
       }
 

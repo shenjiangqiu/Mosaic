@@ -1569,7 +1569,7 @@ public:
     if (epoch_file == NULL)
       epoch_file = fopen(config_epoch_file, "w");
 
-    fprintf(epoch_file, "\nEPOCH STATISTICS CYCLE = %lu\n===========================\n", cycle);
+    fprintf(epoch_file, "\nEPOCH STATISTICS CYCLE = %llu\n===========================\n", cycle);
 
     for (unsigned i = 0; i < ConfigOptions::n_apps; i++) {
       App* app = App::get_app(App::get_app_id(i));

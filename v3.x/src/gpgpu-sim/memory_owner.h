@@ -135,7 +135,7 @@ public:
    unsigned m_bitmask;
    unsigned m_bitmask_pw;
 
-   unsigned get_bitmask(int level);
+   unsigned get_bitmask(unsigned level);
 
    unsigned m_size; //Current size of the page table entries for this level
    new_addr_type current_fillable_address; //Current entries that a new entry can fill into
@@ -308,8 +308,8 @@ public:
    memory_stats_t * m_stats;
 
    page * allocate_PA(new_addr_type va_base, new_addr_type pa_base, int appID);
-   bool free_up_page(page * this_page);
-   bool update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID);
+   void free_up_page(page * this_page);
+   void update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID);
 
 private:
    //FIXME: Check this
@@ -398,7 +398,7 @@ public:
 
    memory_stats_t * m_stats;
 
-   int promote_page(new_addr_type va, int appID);
+   void promote_page(new_addr_type va, int appID);
    int demote_page(new_addr_type va, int appID);
 
    void set_stat(memory_stats_t * stat);
@@ -407,7 +407,7 @@ public:
 
    //Return page's metadata given a VA. 
    page_metadata * update_metadata(new_addr_type va, int appID);
-   bool update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID);
+   void update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID);
    bool allocate_PA(new_addr_type va_base, new_addr_type pa_base, int appID);
 
    // Create a metadata to return for a given page. API for the allocator

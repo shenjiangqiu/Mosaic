@@ -102,14 +102,18 @@ page_metadata * mmu::create_metadata(page * this_page)
     page * temp;
     float actual_util;
     //Should always fall here
+    
     if(this_page->size == m_config->base_page_size)
     {
         temp = this_page->parent_page;
         check_utilization(temp); //Update the parent page's utilization
         actual_util = get_actual_util(temp);
     }
-    else
+    else{
+        abort();//SJQ:this code dosnt make sence, just add this to avoid warning!
+        temp = this_page;
         actual_util = temp->utilization;
+    }
     return new page_metadata(temp->last_accessed_time,this_page->last_accessed_time,temp->appID,temp->utilization,actual_util);
 }
 
@@ -195,7 +199,7 @@ void page_table::parse_bitmask()
     printf("Converting VA bitmask for page_table translation for level = %d, original string = %s, results = %x, mask_string = %s, pwcache_offset_mask = %x, mask_string = %s\n", current_level, m_config->va_mask, m_bitmask, mask.c_str(), m_bitmask_pw, mask2.c_str());
 }
 
-unsigned page_table::get_bitmask(int level)
+unsigned page_table::get_bitmask(unsigned level)
 {
 //    if(next_level == NULL)
 //        printf("Getting bitmask, this is the last level, current level = %d, bitmask = %x, mftlb level = %d\n", current_level, m_bitmask_pw, level);
@@ -286,7 +290,7 @@ page_table_entry * page_table::add_entry(new_addr_type address, int appID, bool 
     new_addr_type key = address & m_bitmask;
     page_table_entry * temp;
     std::map<new_addr_type,page_table_entry*>::iterator itr = entries.find(key);
-    if(PT_DEBUG) printf("Adding page table entry for address = %x, current level key = %x, bitmask = %x\n",address, key, m_bitmask);
+    if(PT_DEBUG) printf("Adding page table entry for address = %llx, current level key = %llx, bitmask = %x\n",address, key, m_bitmask);
     if(itr == entries.end()) //Entry is not in the page table, page fault
     {
         if(PT_DEBUG) printf("Allocating space for page of size %d for page table entry, current entry size = %d\n",m_config->base_page_size, m_size); // Remove this if we want a cleaner stdout
@@ -299,14 +303,14 @@ page_table_entry * page_table::add_entry(new_addr_type address, int appID, bool 
                 current_fillable_address = rand();
             }
             else current_fillable_address = new_page->starting_addr;
-            if(PT_DEBUG) printf("Acquiring a new page for this entry. new page base addr = %x, Current fillable address = %x\n",new_page->starting_addr,current_fillable_address);
+            if(PT_DEBUG) printf("Acquiring a new page for this entry. new page base addr = %llx, Current fillable address = %llx\n",new_page->starting_addr,current_fillable_address);
             temp = new page_table_entry(key,current_fillable_address, this);
             //temp = new page_table_entry(key,current_fillable_address,m_mmu,address);
             if(next_level==NULL) all_page_table_leaf->push_front(current_fillable_address); //If this is the leaf, add it to the address list for the scanner to probe
         }
         else
         {
-            if(PT_DEBUG) printf("Appending to an existing page for this entry. Current fillable address = %x, added index = %x, actual entry address = %x\n",current_fillable_address, m_size%(m_config->base_page_size/64),current_fillable_address + (m_size%(m_config->base_page_size/64)));
+            if(PT_DEBUG) printf("Appending to an existing page for this entry. Current fillable address = %llx, added index = %x, actual entry address = %llx\n",current_fillable_address, m_size%(m_config->base_page_size/64),current_fillable_address + (m_size%(m_config->base_page_size/64)));
             temp = new page_table_entry(key,current_fillable_address + (m_size%(m_config->base_page_size/64)), this);
             //temp = new page_table_entry(key,current_fillable_address + (m_size%(m_config->base_page_size/64)),m_mmu, address);
             if(next_level==NULL) all_page_table_leaf->push_front(current_fillable_address + (m_size%(m_config->base_page_size/64))); //If this is the leaf, add it to the address list for the scanner to probe
@@ -316,12 +320,12 @@ page_table_entry * page_table::add_entry(new_addr_type address, int appID, bool 
         temp->appID = appID;
         temp->isRead = true;
         temp->inDRAM = false; //Not in DRAM. All checkings happen when get_pa is called
-        if(PT_DEBUG) printf("Creating new page table entry for address = %x, current level key = %x, entry address = %x, bitmask = %x\n",address, key, current_fillable_address,m_bitmask);
+        if(PT_DEBUG) printf("Creating new page table entry for address = %llx, current level key = %llx, entry address = %llx, bitmask = %x\n",address, key, current_fillable_address,m_bitmask);
         entries.insert(std::pair<unsigned,page_table_entry*>(key,temp));
     }
     else
     {
-        if(PT_DEBUG) printf("Found the page table entry for address = %x, current level key = %x, key = %x, address = %x\n",address, key, itr->second->key, itr->second->addr);
+        if(PT_DEBUG) printf("Found the page table entry for address = %llx, current level key = %llx, key = %llx, address = %llx\n",address, key, itr->second->key, itr->second->addr);
         temp = itr->second;
     }
     if(next_level !=NULL) //Propagate entires across multiple levels
@@ -336,13 +340,13 @@ page_table_entry * page_table::add_entry(new_addr_type address, int appID, bool 
 new_addr_type page_table::parse_pa(mem_fetch * mf)
 {
     unsigned key = mf->get_original_addr() & m_bitmask;
-    if(PT_DEBUG) printf("Parsing PA for address = %x, current level = %d, key = %x, mf->addr = %x\n",mf->get_original_addr(),mf->get_tlb_depth_count(),key,mf->get_addr());
+    if(PT_DEBUG) printf("Parsing PA for address = %llx, current level = %d, key = %x, mf->addr = %llx\n",mf->get_original_addr(),mf->get_tlb_depth_count(),key,mf->get_addr());
     std::map<new_addr_type,page_table_entry*>::iterator itr = entries.find(key);
     if(itr == entries.end()) //This should never happen. add_entry should have cover this part
     {
 //        printf("Entry not found!");
         //cuda-sim/memory.cc should have already add these entries
-        if(PT_DEBUG) printf("Entry not found: Adding new page table entry for mf = %x, level = %d\n", mf->get_addr(), mf->get_tlb_depth_count());
+        if(PT_DEBUG) printf("Entry not found: Adding new page table entry for mf = %llx, level = %d\n", mf->get_addr(), mf->get_tlb_depth_count());
         add_entry(mf->get_addr(), mf->get_appID(), !mf->is_write());
         return parse_pa(mf);
     }
@@ -405,7 +409,7 @@ page::page()
 DRAM_layout::DRAM_layout(const class memory_config * config, page_table * root)
 {
     //Parse page size into m_size_count and page_size
-    if(ALLOC_DEBUG)  printf("Initialing DRAM physical structure\n");
+    //if(ALLOC_DEBUG)  printf("Initialing DRAM physical structure\n");
     m_config = config;
     DRAM_size = (unsigned)m_config->DRAM_size;
 
@@ -444,7 +448,7 @@ DRAM_layout::DRAM_layout(const class memory_config * config, page_table * root)
 
     m_pt_root->set_leaf_list(all_page_table_leaf);
 
-    for(int i=0;i<m_page_size->size();i++)
+    for(unsigned i=0;i<m_page_size->size();i++)
     {
         free_pages[(*m_page_size)[i]] = new std::list<page*>();
         all_page_list[(*m_page_size)[i]] = new std::list<page*>();
@@ -456,7 +460,7 @@ DRAM_layout::DRAM_layout(const class memory_config * config, page_table * root)
     all_page_list[DRAM_size]->push_front(m_page_root);
 
 
-    float utilization = 0.0;
+    //float utilization = 0.0;
 
     //Populate all the possible mapping
     initialize_pages(m_page_root, 1, m_pt_root);
@@ -476,7 +480,7 @@ DRAM_layout::DRAM_layout(const class memory_config * config, page_table * root)
     occupied_pages[NOAPP] = new std::list<page*>();
     occupied_pages[MIXAPP] = new std::list<page*>();
 
-    if(ALLOC_DEBUG)  printf("Done initialing DRAM physical structure\n");
+    //if(ALLOC_DEBUG)  printf("Done initialing DRAM physical structure\n");
 
 
 }
@@ -493,7 +497,7 @@ void DRAM_layout::check_utilization(page * this_page)
     {
         total_util = total_util + (*itr2)->utilization;
         num_pages++;
-        if(UTIL_CHECK) printf("Updating utilization page PA = %x, VA = %x, app = %d, used = %d, size = %d, utilization value = %f (%f was added from the previous page)\n",this_page->starting_addr, this_page->va_page_addr, this_page->appID, this_page->used, this_page->size, this_page->utilization, (*itr2)->utilization);
+        if(UTIL_CHECK) printf("Updating utilization page PA = %llx, VA = %llx, app = %d, used = %d, size = %d, utilization value = %f (%f was added from the previous page)\n",this_page->starting_addr, this_page->va_page_addr, this_page->appID, this_page->used, this_page->size, this_page->utilization, (*itr2)->utilization);
     }
     this_page->utilization = total_util/(float)num_pages;
 }
@@ -509,7 +513,7 @@ float DRAM_layout::check_utilization()
     std::list<page*> * the_list = all_page_list[(*m_page_size)[m_page_size->size()-1]];
     for(std::list<page*>::iterator itr = the_list->begin(); itr != the_list->end(); itr++)
     {
-        if(UTIL_CHECK) printf("Checking utilization page PA = %x, VA = %x, app = %d, used = %d, size = %d, utilization value = %f\n",(*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->appID, (*itr)->used, (*itr)->size, (*itr)->utilization);
+        if(UTIL_CHECK) printf("Checking utilization page PA = %llx, VA = %llx, app = %d, used = %d, size = %d, utilization value = %f\n",(*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->appID, (*itr)->used, (*itr)->size, (*itr)->utilization);
         total_util = total_util + (*itr)->utilization;
         if((*itr)->utilization > 0) num_pages++;
     }
@@ -525,9 +529,9 @@ float DRAM_layout::check_utilization()
         {
             (*itr)->utilization = (*itr)->utilization + (*itr2)->utilization;
             num_pages2++;
-            if(UTIL_CHECK) printf("Updating utilization page PA = %x, VA = %x, app = %d, used = %d, size = %d, utilization value = %f (%f was added from the previous page)\n",(*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->appID, (*itr)->used, (*itr)->size, (*itr)->utilization, (*itr2)->utilization);
+            if(UTIL_CHECK) printf("Updating utilization page PA = %llx, VA = %llx, app = %d, used = %d, size = %d, utilization value = %f (%f was added from the previous page)\n",(*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->appID, (*itr)->used, (*itr)->size, (*itr)->utilization, (*itr2)->utilization);
         }
-        if(UTIL_CHECK) printf("Done updating utilization page PA = %x, VA = %x, app = %d, used = %d, size = %d, utilization value = %f\n",(*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->appID, (*itr)->used, (*itr)->size, (*itr)->utilization);
+        if(UTIL_CHECK) printf("Done updating utilization page PA = %llx, VA = %llx, app = %d, used = %d, size = %d, utilization value = %f\n",(*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->appID, (*itr)->used, (*itr)->size, (*itr)->utilization);
         (*itr)->utilization = (*itr)->utilization / num_pages2;
     }
     return total_util/(float)num_pages;
@@ -578,12 +582,12 @@ void DRAM_layout::initialize_pages(page * this_page, unsigned size_index, page_t
         temp->sa_id = from_raw_addr.subarray;
 
         //Add this page to the free page list
-        if(ALLOC_DEBUG)  printf("Initialing free page list of page of size %d, starting address = %x, parent_page = %x\n",(*m_page_size)[size_index],temp->starting_addr, this_page->starting_addr);
+        //if(ALLOC_DEBUG)  printf("Initialing free page list of page of size %d, starting address = %llx, parent_page = %llx\n",(*m_page_size)[size_index],temp->starting_addr, this_page->starting_addr);
         free_pages[(*m_page_size)[size_index]]->push_front(temp);
         all_page_list[(*m_page_size)[size_index]]->push_front(temp);
         if(temp->size == (*m_page_size)[m_page_size->size()-1]) //If this is the smallest page, add this page to a map of all small pages
         {
-            if(MERGE_DEBUG || ALLOC_DEBUG)  printf("Adding a leaf page of size %d, starting address = %x, parent_page = %x to the all page map\n",(*m_page_size)[size_index],temp->starting_addr, this_page->starting_addr);
+            if(MERGE_DEBUG || ALLOC_DEBUG)  printf("Adding a leaf page of size %d, starting address = %llx, parent_page = %llx to the all page map\n",(*m_page_size)[size_index],temp->starting_addr, this_page->starting_addr);
             all_page_map[temp->starting_addr] = temp; //Used by gpgpu-sim to find Page * based on PA
         }
         this_page->sub_pages->push_front(temp);
@@ -636,10 +640,10 @@ page * DRAM_layout::find_page_from_pa(new_addr_type pa)
 {
     new_addr_type pa_base = (pa / (*m_page_size)[m_page_size->size()-1]) * (*m_page_size)[m_page_size->size()-1];
     page * res = all_page_map[pa_base];
-    if(ALLOC_DEBUG || COALESCE_DEBUG){
-        if(res == NULL) printf("Searching for a page using PA: Cannot find the page for PA = %x, searched key = %x\n", pa, pa_base);    
-        else printf("Searching for a page using PA: Found the page for PA = %x, searched key = %x, VA = %x, appID = %d, size = %d\n", pa, pa_base, res->va_page_addr, res->appID, res->size);    
-    }
+    /* //if(ALLOC_DEBUG || COALESCE_DEBUG){
+        if(res == NULL) printf("Searching for a page using PA: Cannot find the page for PA = %llx, searched key = %llx\n", pa, pa_base);    
+        else printf("Searching for a page using PA: Found the page for PA = %llx, searched key = %llx, VA = %llx, appID = %d, size = %d\n", pa, pa_base, res->va_page_addr, res->appID, res->size);    
+    } */
 
     return res;
 }
@@ -651,7 +655,7 @@ int DRAM_layout::demote_page(page * this_page)
 
     if(this_page == NULL)
     {
-        printf("Somehow trying to demote a null page, current free_page size = %lld\n",free_pages[m_config->base_page_size]->size());
+        printf("Somehow trying to demote a null page, current free_page size = %lu\n",free_pages[m_config->base_page_size]->size());
         return 1;
     }
     else if(this_page->size == 4096)
@@ -668,11 +672,11 @@ int DRAM_layout::demote_page(page * this_page)
     std::list<page*> add_free_list; 
     std::list<page*> occupied_list;
 
-    if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("Demoting a superpage PA = %x, base_va = %x, size = %u\n", this_page->starting_addr, this_page->va_page_addr, this_page->size);
+    //if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("Demoting a superpage PA = %llx, base_VA = %llx, size = %u\n", this_page->starting_addr, this_page->va_page_addr, this_page->size);
     for(std::list<page*>::iterator itr = this_page->sub_pages->begin();itr != this_page->sub_pages->end();itr++)
     {
 //        (*itr)->appID = this_page->appID;
-        if(COALESCE_DEBUG) printf("Breaking subpage PA = %x, base_va = %x, size = %u, appID = %d\n", (*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->size, (*itr)->appID);
+        //if(COALESCE_DEBUG) printf("Breaking subpage PA = %llx, base_VA = %llx, size = %u, appID = %d\n", (*itr)->starting_addr, (*itr)->va_page_addr, (*itr)->size, (*itr)->appID);
         (*itr)->used = true; //Mark subpage as a leaf node
         (*itr)->dataPresent = true; 
         if((*itr)->appID == NOAPP) //Add to free page list if this is originally a free page
@@ -713,7 +717,7 @@ void DRAM_layout::propagate_sub_page_as_used(page * this_page)
     {
         for(std::list<page*>::iterator itr = this_page->sub_pages->begin();itr != this_page->sub_pages->end();itr++)
         {
-//            if(ALLOC_DEBUG_SHORT) printf("For parent page at PA = %x, size = %d: Marking page at %x VA = %x use val = %d to false\n",this_page->starting_addr,this_page->size,(*itr)->starting_addr,(*itr)->va_page_addr, (*itr)->used);
+//            //if(ALLOC_DEBUG_SHORT) printf("For parent page at PA = %llx, size = %d: Marking page at %x VA = %llx use val = %d to false\n",this_page->starting_addr,this_page->size,(*itr)->starting_addr,(*itr)->va_page_addr, (*itr)->used);
             (*itr)->dataPresent = false;
             (*itr)->used = false;
             remove_free_page(*itr);
@@ -735,7 +739,7 @@ void DRAM_layout::propagate_sub_page_as_used(page * this_page)
 void DRAM_layout::remove_free_page(page * this_page)
 {
 
-    if(COALESCE_DEBUG) printf("Removing a page at %x, va_base = %x, app = %d of size = %d from the free page list\n",this_page->starting_addr,this_page->va_page_addr,this_page->appID,this_page->size);
+    //if(COALESCE_DEBUG) printf("Removing a page at %llx, va_base = %llx, app = %d of size = %d from the free page list\n",this_page->starting_addr,this_page->va_page_addr,this_page->appID,this_page->size);
 
     std::list<page*> * toSearch = free_pages[this_page->size];
 
@@ -840,9 +844,9 @@ void DRAM_layout::allocate_free_page(page * original_page, page * free_page)
 page * DRAM_layout::allocate_free_page(unsigned size, int appID)
 {
     page * return_page = NULL;
-    if(ALLOC_DEBUG || COALESCE_DEBUG_SMALL) printf("Allocating a page of size = %d, for appID = %d, free page exist, free page size = %d\n",size,appID,free_pages[size]->size());
+    //if(ALLOC_DEBUG || COALESCE_DEBUG_SMALL) printf("Allocating a page of size = %d, for appID = %d, free page exist, free page size = %lu\n",size,appID,free_pages[size]->size());
     if((free_pages[size]->size()) > 0){
-        if(ALLOC_DEBUG) printf("Trying to grab the front of free page list, size = %d, front entry is at %x, back is at %x\n", free_pages[size]->size(), free_pages[size]->front()->starting_addr, free_pages[size]->back()->starting_addr);
+        //if(ALLOC_DEBUG) printf("Trying to grab the front of free page list, size = %lu, front entry is at %llx, back is at %llx\n", free_pages[size]->size(), free_pages[size]->front()->starting_addr, free_pages[size]->back()->starting_addr);
         //Grab the free page of a certain size
         if(appID == PT_SPACE) //To reduce coalescing conflict
         {
@@ -860,7 +864,7 @@ page * DRAM_layout::allocate_free_page(unsigned size, int appID)
         }
         //Remove this page from the free page list
         free_pages[size]->pop_front();
-        if(ALLOC_DEBUG || PT_DEBUG) printf("Returning a page of size = %d, page starting address = %x, free page size is now at = %d, appID = %d, freepage_list_front is %x, back is %x\n",size,return_page->starting_addr,free_pages[size]->size(), appID, free_pages[size]->front()->starting_addr, free_pages[size]->back()->starting_addr);
+        //if(ALLOC_DEBUG || PT_DEBUG) printf("Returning a page of size = %d, page starting address = %llx, free page size is now at = %llu, appID = %d, freepage_list_front is %llx, back is %llx\n",size,return_page->starting_addr,free_pages[size]->size(), appID, free_pages[size]->front()->starting_addr, free_pages[size]->back()->starting_addr);
 
         //Add this page to app
         return_page->used = true;
@@ -872,7 +876,7 @@ page * DRAM_layout::allocate_free_page(unsigned size, int appID)
         propagate_parent_page_as_used(return_page);
 
 
-        if(ALLOC_DEBUG) printf("Setting return page as used and data present\n");
+        //if(ALLOC_DEBUG) printf("Setting return page as used and data present\n");
         // Add all the subpages of this free page to the non_free_list
         propagate_sub_page_as_used(return_page); 
         // Mark the entry in page table that the page is in DRAM
@@ -1005,14 +1009,14 @@ void DRAM_layout::release_occupied_page(page * this_page)
         printf("Trying to releasce a NULL page!!!\n");
         return;
     }
-    if(COALESCE_DEBUG) printf("Releasing occupied page from app %d with VA = %x, size = %u, PA = %x\n",this_page->appID, this_page->va_page_addr, this_page->size, this_page->starting_addr);
+    //if(COALESCE_DEBUG) printf("Releasing occupied page from app %d with VA = %llx, size = %u, PA = %llx\n",this_page->appID, this_page->va_page_addr, this_page->size, this_page->starting_addr);
     for(std::list<page*>::iterator itr = occupied_pages[this_page->appID]->begin();
         itr != occupied_pages[this_page->appID]->end(); itr++)
     {
         if((*itr) == this_page)
         //if((*itr)->starting_addr == this_page->starting_addr) //No need to actually check the PA, it should be the same pointer
         {
-            if(COALESCE_DEBUG) printf("Found the match to release in the occupied page list from app %d with VA = %x, size = %u, PA = %x, PA in occupied list = %x, this_page_address = %x, occupied_page_matched_pointer_addr = %x\n",this_page->appID, this_page->va_page_addr, this_page->size, this_page->starting_addr, (*itr)->starting_addr,this_page, *itr);
+            //if(COALESCE_DEBUG) printf("Found the match to release in the occupied page list from app %d with VA = %llx, size = %u, PA = %llx, PA in occupied list = %llx, this_page_address = %llx, occupied_page_matched_pointer_addr = %llx\n",this_page->appID, this_page->va_page_addr, this_page->size, this_page->starting_addr, (*itr)->starting_addr,this_page, *itr);
 //            //Add to the free page list
             free_pages[this_page->size]->push_back(*itr);
 //            //Remove this from occupied page
@@ -1022,7 +1026,7 @@ void DRAM_layout::release_occupied_page(page * this_page)
     }
     // Send a DRAM command to zero out the page
     dram_cmd * zero_cmd = new dram_cmd(ZERO, this_page, NULL, m_config);
-    if(COALESCE_DEBUG) printf("Then, send ZERO command to DRAM to free up page at address %x, channel = %d, bank = %d, subarray = %d\n",this_page->starting_addr, zero_cmd->to_channel, zero_cmd->to_bank, zero_cmd->to_sa);
+    //if(COALESCE_DEBUG) printf("Then, send ZERO command to DRAM to free up page at address %x, channel = %d, bank = %d, subarray = %d\n",this_page->starting_addr, zero_cmd->to_channel, zero_cmd->to_bank, zero_cmd->to_sa);
     dram_channel_interface[zero_cmd->from_channel]->insert_dram_command(zero_cmd);
 }
 
@@ -1030,27 +1034,27 @@ page * DRAM_layout::get_page_from_va(new_addr_type va, int appID, unsigned size)
 {
     std::list<page*> * page_list = occupied_pages[appID];
 // This gets printed too often
-    if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Trying to find the physical page for va = %x, appID = %d, size = %d\n", va, appID, size);
+    //if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Trying to find the physical page for VA = %llx, appID = %d, size = %d\n", va, appID, size);
     for(std::list<page*>::iterator itr = page_list->begin(); itr != page_list->end();itr++)
     {
-        if(ALLOC_DEBUG_LONG)
+        //if(ALLOC_DEBUG_LONG)
 //        if((((*itr)->va_page_addr)>>24) == (va >> 24))
-            printf("During the exhausive search (subset of bits) to find the physical page for va = %x, appID = %d, iterator point at %x, compared value (from VA) is = %x\n", va, appID, (*itr)->va_page_addr,(va & ~((*itr)->size-1)));
-        if(COALESCE_DEBUG && (*itr)->size > 4096 && (*itr)->used)
-            printf("During the exhausive search (subset of bits) to find the huge physical page for va = %x, appID = %d, iterator point at %x, compared value (from VA) is = %x\n", va, appID, (*itr)->va_page_addr,(va & ~((*itr)->size-1)));
+            //printf("During the exhausive search (subset of bits) to find the physical page for VA = %llx, appID = %d, iterator point at %x, compared value (from VA) is = %x\n", va, appID, (*itr)->va_page_addr,(va & ~((*itr)->size-1)));
+        //if(COALESCE_DEBUG && (*itr)->size > 4096 && (*itr)->used)
+            //printf("During the exhausive search (subset of bits) to find the huge physical page for VA = %llx, appID = %d, iterator point at %x, compared value (from VA) is = %x\n", va, appID, (*itr)->va_page_addr,(va & ~((*itr)->size-1)));
         if((*itr)->va_page_addr == (va & ~((*itr)->size-1)) && ((*itr)->size == size)) //need to check if the page is used too (otherwise it might return a subpage instead of superpage)
         {
-            if(COALESCE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT)
-                printf("Physical page is found for VA = %x, app = %d, VA page addr = %x, mask = %x, computed mask key = %x, Physical page base address = %x, size = %d\n",va, appID, (*itr)->va_page_addr,~((*itr)->size-1),(va & ~((*itr)->size-1)),(*itr)->starting_addr, (*itr)->size);
+            //if(COALESCE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT)
+                // printf("Physical page is found for VA = %llx, app = %d, VA page addr = %x, mask = %x, computed mask key = %x, Physical page base address = %x, size = %d\n",va, appID, (*itr)->va_page_addr,~((*itr)->size-1),(va & ~((*itr)->size-1)),(*itr)->starting_addr, (*itr)->size);
             return *itr;
         }
     }
-    if(COALESCE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT){
-        printf("Trying to find the physical page for va = %x, appID = %d, size = %d, not found --  occupy page list contains:{", va, appID, size);
+    /* if(COALESCE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT){
+        printf("Trying to find the physical page for VA = %llx, appID = %d, size = %d, not found --  occupy page list contains:{", va, appID, size);
         for(std::list<page*>::iterator itr = page_list->begin(); itr != page_list->end();itr++)
             printf("VA:0x%x, (PA:0x%x, Comparing %x == %x? use = %d, size = %d)",(*itr)->va_page_addr, (*itr)->starting_addr, (*itr)->va_page_addr,(va & ~((*itr)->size-1)), (*itr)->used, (*itr)->size);
         printf("}\n");
-    }
+    } */
 
     return NULL;
 }
@@ -1201,7 +1205,7 @@ page * DRAM_layout::find_swapped_page(int appID, page * searched_parent_page, pa
 dram_cmd * DRAM_layout::compact_routine(page * target_huge, page * source_small)
 {
     dram_cmd * return_cmd;
-    if(COMPACTION_DEBUG) printf("Compaction routine for merging small page into a huge page called at cycle %lld\n",gpu_sim_cycle, gpu_tot_sim_cycle);
+    //if(COMPACTION_DEBUG) printf("Compaction routine for merging small page into a huge page called at cycle %lld\n",gpu_sim_cycle, gpu_tot_sim_cycle);
     //Find a free page within page 1 range to swap into
     page * target_page = compaction_find_swapped_page(target_huge,source_small);
 
@@ -1269,7 +1273,7 @@ bool DRAM_layout::RC_test()
 //Perform compaction by merging pages from page 2 to pages from page 1, free up page 2
 bool DRAM_layout::compaction(page * page1, page* page2)
 {
-    if(COMPACTION_DEBUG) printf("Compaction routine called at cycle %lld\n",gpu_sim_cycle, gpu_tot_sim_cycle);
+    //if(COMPACTION_DEBUG) printf("Compaction routine called at cycle %lld\n",gpu_sim_cycle, gpu_tot_sim_cycle);
     if(page1 == NULL || page2 == NULL){
         printf("Trying to perform compaction on a NULL page\n");
         return false;
@@ -1368,7 +1372,7 @@ int DRAM_layout::coalesce_page(page * this_page)
 
     if(this_page == NULL)
     {
-        printf("Somehow trying to coalesce a null page (O_O ) , current free_page size = %lld\n",free_pages[m_config->base_page_size]->size());
+        printf("Somehow trying to coalesce a null page (O_O ) , current free_page size = %lu\n",free_pages[m_config->base_page_size]->size());
         return 0;
     }
     else if(this_page->size != 4096)
@@ -1383,7 +1387,7 @@ int DRAM_layout::coalesce_page(page * this_page)
     }
     else
     {
-        if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("In coalescing routine, Coalescing the page %x, base VA = %x, size = %u\n",this_page->starting_addr,this_page->va_page_addr,this_page->size);
+        //if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("In coalescing routine, Coalescing the page %x, base VA = %llx, size = %u\n",this_page->starting_addr,this_page->va_page_addr,this_page->size);
     }
 
 
@@ -1413,11 +1417,11 @@ int DRAM_layout::coalesce_page(page * this_page)
     }
     else
     {
-        if(COALESCE_DEBUG) printf("Parent of the coalesced page is %x, base VA = %x, size = %u\n",parent->starting_addr,parent->va_page_addr,parent->size);
+        //if(COALESCE_DEBUG) printf("Parent of the coalesced page is %x, base VA = %llx, size = %u\n",parent->starting_addr,parent->va_page_addr,parent->size);
     }
     float avg_util = 0.0;
     int count = 0;
-    if(COALESCE_DEBUG) printf("in MMU, coalescing page with base addr = %x (VA = %x), parent page is %x\n", this_page->starting_addr, this_page->va_page_addr, parent->starting_addr);
+    //if(COALESCE_DEBUG) printf("in MMU, coalescing page with base addr = %x (VA = %llx), parent page is %x\n", this_page->starting_addr, this_page->va_page_addr, parent->starting_addr);
 
 
     for(std::list<page*>::iterator itr = parent->sub_pages->begin();itr != parent->sub_pages->end();itr++)
@@ -1425,7 +1429,7 @@ int DRAM_layout::coalesce_page(page * this_page)
         count++;
         if(!(((*itr)->appID) == this_page->appID)  && (( (*itr)->appID) != NOAPP))
         {
-            if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("A page from other app is within the coalesce range, can merge = %d, conflicting appID = %d, page base PA = %x, page base VA = %x\n",can_merge, (*itr)->appID, (*itr)->starting_addr, (*itr)->va_page_addr);
+            //if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("A page from other app is within the coalesce range, can merge = %d, conflicting appID = %d, page base PA = %llx, page base VA = %llx\n",can_merge, (*itr)->appID, (*itr)->starting_addr, (*itr)->va_page_addr);
             if(!m_config->enable_costly_coalesce) return 0; //Usually if it reach this point, can return right away because we detect there is a page of other app within the huge block range
 
             can_merge = false; //Mark this as not coalesable, need to find another free location
@@ -1434,12 +1438,12 @@ int DRAM_layout::coalesce_page(page * this_page)
         }
         else if((( (*itr)->appID) == NOAPP)) //Free page within the coalesced range
         {
-            if(COALESCE_DEBUG) printf("A free page within the coalesce range, can merge = %d, conflicting appID = %d, page base PA = %x, page base VA = %x\n",can_merge, (*itr)->appID, (*itr)->starting_addr, (*itr)->va_page_addr);
+            //if(COALESCE_DEBUG) printf("A free page within the coalesce range, can merge = %d, conflicting appID = %d, page base PA = %llx, page base VA = %llx\n",can_merge, (*itr)->appID, (*itr)->starting_addr, (*itr)->va_page_addr);
             remove_free_list.push_back(*itr);
         }
         else //Used page in the coalesced range
         { 
-            if(COALESCE_DEBUG) printf("An occupied page of the same app in coalesce range, can merge = %d, conflicting appID = %d, page base PA = %x, page base VA = %x\n",can_merge, (*itr)->appID, (*itr)->starting_addr, (*itr)->va_page_addr);
+            //if(COALESCE_DEBUG) printf("An occupied page of the same app in coalesce range, can merge = %d, conflicting appID = %d, page base PA = %llx, page base VA = %llx\n",can_merge, (*itr)->appID, (*itr)->starting_addr, (*itr)->va_page_addr);
             move_to_free_list.push_back((*itr));
             avg_util += (*itr)->utilization;
             //combined_list.insert(itr);
@@ -1448,7 +1452,7 @@ int DRAM_layout::coalesce_page(page * this_page)
 
 
 
-    if(COALESCE_DEBUG) printf("Checking if no copy required (should be the case for 1 app, can merge = %d\n",can_merge);
+    //if(COALESCE_DEBUG) printf("Checking if no copy required (should be the case for 1 app, can merge = %d\n",can_merge);
 
 
 
@@ -1456,7 +1460,7 @@ int DRAM_layout::coalesce_page(page * this_page)
     // At this point, done with checking if we can just promote the entire block to a superpage. 
     if(can_merge)
     {
-        if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("Can directly coalesce the page %x, base VA = %x, size = %u, free page size = %d\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size]);
+        //if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("Can directly coalesce the page %x, base VA = %llx, size = %u, free page size = %d\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size]);
         // Mark parent as a new used superpage
         parent->used = true;
         parent->dataPresent = true;
@@ -1477,7 +1481,7 @@ int DRAM_layout::coalesce_page(page * this_page)
         while(!remove_free_list.empty())
         {
             page * remove_page = remove_free_list.front();
-            if(COALESCE_DEBUG) printf("Removing sub page pa = %x, va_base = %x, size = %u\n",remove_page->starting_addr,remove_page->va_page_addr,remove_page->size);
+            //if(COALESCE_DEBUG) printf("Removing sub page PA = %llx, va_base = %x, size = %u\n",remove_page->starting_addr,remove_page->va_page_addr,remove_page->size);
             remove_free_page(remove_page);
             remove_free_list.pop_front();
         }
@@ -1497,7 +1501,7 @@ int DRAM_layout::coalesce_page(page * this_page)
     //Need to use some other page, can't coalesce without copy
     else
     {
-        if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("Need to coalesce by moving to free page for %x, base VA = %x, size = %u, free page size = %d\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size]);
+        //if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("Need to coalesce by moving to free page for %x, base VA = %llx, size = %u, free page size = %d\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size]);
 
         //Step2: See if there is a free large page, if so, move all subpages there and free this old page
         if(free_pages[parent->size] > 0) //Check if there is a large page 
@@ -1507,8 +1511,8 @@ int DRAM_layout::coalesce_page(page * this_page)
 
 
 
-        if(COALESCE_DEBUG && can_merge) printf("Cannot just merge, but free huge page is available need to migrate to a new free page, pa_base = %x, va_base = %x, size = %u. Target free page is at %x, size %u\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size]->front(), parent->size);
-        if(COALESCE_DEBUG && !can_merge) printf("Cannot just merge, and no free huge page is available need to migrate to a new free page, pa_base = %x, va_base = %x, size = %u\n",this_page->starting_addr,this_page->va_page_addr,this_page->size);
+        //if(COALESCE_DEBUG && can_merge) printf("Cannot just merge, but free huge page is available need to migrate to a new free page, pa_base = %x, va_base = %x, size = %u. Target free page is at %x, size %u\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size]->front(), parent->size);
+        //if(COALESCE_DEBUG && !can_merge) printf("Cannot just merge, and no free huge page is available need to migrate to a new free page, pa_base = %x, va_base = %x, size = %u\n",this_page->starting_addr,this_page->va_page_addr,this_page->size);
 
        
 
@@ -1518,7 +1522,7 @@ int DRAM_layout::coalesce_page(page * this_page)
             int this_appID = this_page->appID;
             int count = move_to_free_list.size();
 
-            if(COALESCE_DEBUG) printf("Attempting to move set of sub pages with huge page va_base at %x to free_page at PA = %x (VA = %x), appID = %d, free page list size = %d\n", va_base, target_free_page->starting_addr, target_free_page->va_page_addr, this_appID, free_pages[parent->size]->size());
+            //if(COALESCE_DEBUG) printf("Attempting to move set of sub pages with huge page va_base at %x to free_page at PA = %llx (VA = %llx), appID = %d, free page list size = %d\n", va_base, target_free_page->starting_addr, target_free_page->va_page_addr, this_appID, free_pages[parent->size]->size());
 
 
 
@@ -1528,7 +1532,7 @@ int DRAM_layout::coalesce_page(page * this_page)
                 page * swap_out = move_to_free_list.front();
                 page * swap_in = find_free_page_for_coalesce(target_free_page,swap_out);
                 //Update the free page list/occupied page list and send the zero DRAM command
-                if(COALESCE_DEBUG) printf("Moving sub page pa = %x, va_base = %x, size = %u, with free page pa = %x, va = %x, size = %u\n",swap_out->starting_addr,swap_out->va_page_addr,swap_out->size, swap_in->starting_addr, swap_in->va_page_addr, swap_in->size);
+                //if(COALESCE_DEBUG) printf("Moving sub page PA = %llx, va_base = %x, size = %u, with free page PA = %llx, VA = %llx, size = %u\n",swap_out->starting_addr,swap_out->va_page_addr,swap_out->size, swap_in->starting_addr, swap_in->va_page_addr, swap_in->size);
 
 
                 release_occupied_page(swap_out);  
@@ -1549,7 +1553,7 @@ int DRAM_layout::coalesce_page(page * this_page)
             target_free_page->used = true;
             target_free_page->utilization = (float) count / (float) target_free_page->sub_pages->size();
             //Update the occupied page list. Also, note that this huge page range (old location) does not become free because other apps' pages are still in there, no need to add this huge page to the free page
-            if(COALESCE_DEBUG) printf("Pushing huge page at PA = %x, VA = %x, app = %d, size = %u to the occupied page list\n",target_free_page->starting_addr, target_free_page->va_page_addr, target_free_page->appID, target_free_page->size);
+            //if(COALESCE_DEBUG) printf("Pushing huge page at PA = %llx, VA = %llx, app = %d, size = %u to the occupied page list\n",target_free_page->starting_addr, target_free_page->va_page_addr, target_free_page->appID, target_free_page->size);
             occupied_pages[this_appID]->push_back(target_free_page);
         
 
@@ -1557,7 +1561,7 @@ int DRAM_layout::coalesce_page(page * this_page)
         } //End of step 2
         else //Begin step 3: No free large page available, copy pages from other apps out
         {
-            if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("No more huge free page for coalesceing page %x, base VA = %x, size = %u, free page size = %d\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size] > 0);
+            //if(COALESCE_DEBUG || COALESCE_DEBUG_SMALL) printf("No more huge free page for coalesceing page %x, base VA = %llx, size = %u, free page size = %d\n",this_page->starting_addr,this_page->va_page_addr,this_page->size, free_pages[parent->size] > 0);
             // Do we want to copy from other location to fill in this superpage?
             // If this is the case, setup DRAM commands to send
     
@@ -1631,7 +1635,7 @@ int DRAM_layout::coalesce_page(page * this_page)
         dram_channel_interface[dram_cmd_list.front()->from_channel]->insert_dram_command(dram_cmd_list.front());   
         dram_cmd_list.pop_front();
     }
-
+    return 0;
 }
 
 
@@ -1708,8 +1712,9 @@ void mmu::set_ready()
 page * DRAM_layout::handle_page_fault(int appID, new_addr_type key)
 {
     //Evict a page and grab a free page for mf's data
-    if(ALLOC_DEBUG) 
+    /* if(ALLOC_DEBUG) 
         printf("Handling page fault (with data arrived at the GPU, on virtual address = %x, app = %d\n", key, appID);
+     */
     return evict_page(appID, get_evict_target(appID), key);
 }
 
@@ -1717,21 +1722,21 @@ page * DRAM_layout::handle_page_fault(int appID, new_addr_type key)
 page * DRAM_layout::get_target_page(int appID_target, int appID_requestor)
 {
     //LRU as the default policy, can be changed later
-    if(ALLOC_DEBUG) printf("Trying to allocate a free page for application %d\n",appID_requestor);
+    //if(ALLOC_DEBUG) printf("Trying to allocate a free page for application %d\n",appID_requestor);
     page * return_page = allocate_free_page(m_config->base_page_size,appID_requestor); //In case there is a free page available, no eviction occur
     if(return_page !=NULL) //If there is a free page
     {
-        if(ALLOC_DEBUG) printf("Free page exist, grabbing a free page for application %d, free page PA = %x\n",appID_requestor, return_page->starting_addr);
+        //if(ALLOC_DEBUG) printf("Free page exist, grabbing a free page for application %d, free page PA = %llx\n",appID_requestor, return_page->starting_addr);
         return_page->appID = appID_requestor;
         return return_page;
     }
     else
     { 
-        if(ALLOC_DEBUG) printf("No free page exist, Releasing a page from application %d\n",appID_target);
+        //if(ALLOC_DEBUG) printf("No free page exist, Releasing a page from application %d\n",appID_target);
         page * released_page = occupied_pages[appID_target]->front(); //FIXME: fix get_evicted_target when we have page replacement policy. Always assume this app has an occupied page
-        if(ALLOC_DEBUG) printf("Got a target page (PA = %x, original Virtual page addr = %x) from application %d\n", released_page->starting_addr,released_page->va_page_addr, appID_target);
+        //if(ALLOC_DEBUG) printf("Got a target page (PA = %llx, original Virtual page addr = %x) from application %d\n", released_page->starting_addr,released_page->va_page_addr, appID_target);
         release_occupied_page(released_page); //Release the page from the occupied page
-        if(ALLOC_DEBUG) printf("Finish moving the occupied page to the free page list, before grabbing this free page from the free page list for %d\n",appID_requestor);
+        //if(ALLOC_DEBUG) printf("Finish moving the occupied page to the free page list, before grabbing this free page from the free page list for %d\n",appID_requestor);
         return_page = allocate_free_page(return_page->size, appID_requestor);
         return_page->appID = appID_requestor;
     }
@@ -1747,8 +1752,9 @@ page * DRAM_layout::evict_page(int demander,int target,new_addr_type va_key)
     else //Set page info
     {
         evicted_page->appID = demander;
-        if(ALLOC_DEBUG)
+        /* if(ALLOC_DEBUG)
             printf("Adding a new page for app = %d, VA page = %x, page_size = %x\n", demander, va_key, evicted_page->size);
+         */
         evicted_page->va_page_addr = va_key * (evicted_page->size);
     }
     return evicted_page; //Allocate this page as it belongs to the appID
@@ -1772,23 +1778,23 @@ void DRAM_layout::remove_page_fault()
     if(m_config->page_transfer_time == 0 || m_config->enable_PCIe == 0) return;
 
     // Retire any fault that is done
-    if(ALLOC_DEBUG) printf("Checking if there are any page fault resolved, cycle = %lld. Current ongoing fault size = %d\n", gpu_sim_cycle, gpu_tot_sim_cycle, page_fault_list.size());
+    //if(ALLOC_DEBUG) printf("Checking if there are any page fault resolved, cycle = %lld. Current ongoing fault size = %d\n", gpu_sim_cycle, gpu_tot_sim_cycle, page_fault_list.size());
 
     if(!page_fault_list.empty() && ((gpu_sim_cycle + gpu_tot_sim_cycle) > (page_fault_last_service_time + m_config->page_transfer_time)))
     {
         page_fault_info * done = page_fault_list.front();
-        page * new_page = handle_page_fault(done->appID, done->key); //appID is the page that cause the fault, key is the virtual page of the fault. After calling this, occupied_page[appID] must contains key
+        //page * new_page = handle_page_fault(done->appID, done->key); //appID is the page that cause the fault, key is the virtual page of the fault. After calling this, occupied_page[appID] must contains key
         
         //if(ALLOC_DEBUG) 
-            printf("Page fault resolved for page = %x, appID = %d, handling it at the moment. Page fault size = %d\n", done->key, done->appID, page_fault_set.size());
+            //printf("Page fault resolved for page = %x, appID = %d, handling it at the moment. Page fault size = %d\n", done->key, done->appID, page_fault_set.size());
 
         page_fault_set.erase(done->key);
         page_fault_list.pop_front();
         if(GET_FAULT_STATUS)
         {
-            printf("[FAULT_Q_STAT] size = %d: {",page_fault_set.size());
+            printf("[FAULT_Q_STAT] size = %lu: {",page_fault_set.size());
             for(std::set<new_addr_type>::iterator itr = page_fault_set.begin(); itr!=page_fault_set.end();itr++)
-                printf("%x, ", *itr);
+                printf("%llx, ", *itr);
             printf("}\n");
         }
 
@@ -1801,7 +1807,7 @@ void DRAM_layout::remove_page_fault()
 bool DRAM_layout::is_active_fault(new_addr_type address)
 {
     new_addr_type key = address / m_config->base_page_size;
-    if(ALLOC_DEBUG) printf("Is active fault check routine for address = %x\n",address);
+    //if(ALLOC_DEBUG) printf("Is active fault check routine for address = %x\n",address);
 
 //    if(GET_FAULT_STATUS)
 //    {
@@ -1815,14 +1821,16 @@ bool DRAM_layout::is_active_fault(new_addr_type address)
     std::set<new_addr_type>::iterator itr = page_fault_set.find(key);
     if(itr == page_fault_set.end())
     {
-        if(ALLOC_DEBUG)
+        /* if(ALLOC_DEBUG)
             printf("Checking if addr = %x is an access in the fault region, not a fault\n", address);
+         */
         return false;
     }
     else
     {
-        if(ALLOC_DEBUG)
+        /* if(ALLOC_DEBUG)
             printf("Checking if addr = %x is an access in the fault region, this a fault. page that fault = %x\n", address, *itr);
+         */
         return true;
     }
 }
@@ -1838,12 +1846,12 @@ void DRAM_layout::insert_page_fault(new_addr_type key, int appID)
         
     if(page_fault_set.find(key) == page_fault_set.end()){
         //if(ALLOC_DEBUG) 
-            printf("Inserting page fault to page = %x from app = %d to the FIFO, current size = %d\n",key, appID, page_fault_set.size());
+            //printf("Inserting page fault to page = %x from app = %d to the FIFO, current size = %d\n",key, appID, page_fault_set.size());
         if(GET_FAULT_STATUS)
         {
-            printf("[FAULT_Q_STAT] size = %d: {",page_fault_set.size());
+            printf("[FAULT_Q_STAT] size = %lu: {",page_fault_set.size());
             for(std::set<new_addr_type>::iterator itr = page_fault_set.begin(); itr!=page_fault_set.end();itr++)
-                printf("%x, ", *itr);
+                printf("%llx, ", *itr);
             printf("}\n");
         }
         page_fault_set.insert(key);
@@ -1854,7 +1862,7 @@ void DRAM_layout::insert_page_fault(new_addr_type key, int appID)
 //Return true if the request is resolving a page fault. This is called from tlb.cc, which will block accesses to this page when fault happens
 bool mmu::is_active_fault(new_addr_type address)
 {
-    m_DRAM->is_active_fault(address);
+    return m_DRAM->is_active_fault(address);//SJQ fix bug
 }
 
 //This is used from tlb.cc
@@ -1915,11 +1923,11 @@ bool mmu::allocate_PA(new_addr_type va_base, new_addr_type pa_base, int appID)
         //Add this page to VA to page mapping so that it can be easily search
         // SearchID = [base page VA | appID ]
         unsigned searchID = va_base | appID;
-        if(((MERGE_DEBUG || MERGE_DEBUG_SHORT) && ((gpu_sim_cycle + gpu_tot_sim_cycle) > 0)) || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %x, app = %d not in DRAM. Allocating a free page for this VA at PA = %x, VA base is %x (Occupy page for this app should contain this page), cycle = %lld. use_value = %d.\n",va_base, appID, target_page->starting_addr,target_page->va_page_addr, gpu_sim_cycle + gpu_tot_sim_cycle, target_page->used);
+        //if(((MERGE_DEBUG || MERGE_DEBUG_SHORT) && ((gpu_sim_cycle + gpu_tot_sim_cycle) > 0)) || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %llx, app = %d not in DRAM. Allocating a free page for this VA at PA = %llx, VA base is %x (Occupy page for this app should contain this page), cycle = %lld. use_value = %d.\n",va_base, appID, target_page->starting_addr,target_page->va_page_addr, gpu_sim_cycle + gpu_tot_sim_cycle, target_page->used);
         (*va_to_page_mapping)[searchID] = target_page; 
         return true;
     }
-    if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %x, app = %d either is not in DRAM (Impossible) or clash with page table space.\n",va_base, appID);
+    if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %llx, app = %d either is not in DRAM (Impossible) or clash with page table space.\n",va_base, appID);
     return false;
 }
 
@@ -1930,12 +1938,12 @@ bool mmu::allocate_PA(new_addr_type va_base, new_addr_type pa_base, int appID)
 page * DRAM_layout::allocate_PA(new_addr_type va_base, new_addr_type pa_base, int appID)
 {
     //Grab this physical page, check if it is occupied by PT
-    if((MERGE_DEBUG && ((gpu_sim_cycle+gpu_tot_sim_cycle) > 0)) || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Trying to get physical page for VA = %x using PA %x as the key. App creation ID = %d,\n",va_base, pa_base, appID);
+    //if((MERGE_DEBUG && ((gpu_sim_cycle+gpu_tot_sim_cycle) > 0)) || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Trying to get physical page for VA = %llx using PA %x as the key. App creation ID = %d,\n",va_base, pa_base, appID);
     page * target_page = find_page_from_pa(pa_base); 
 
     if(target_page == NULL)
     {
-        if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Cannot find physical page for VA = %x using PA %x as the key. App = %d.\n",va_base, pa_base, appID);
+        //if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Cannot find physical page for VA = %llx using PA %x as the key. App = %d.\n",va_base, pa_base, appID);
         return NULL;
     }
 
@@ -1966,7 +1974,7 @@ page * DRAM_layout::allocate_PA(new_addr_type va_base, new_addr_type pa_base, in
 
 }
 
-bool DRAM_layout::free_up_page(page * this_page)
+void DRAM_layout::free_up_page(page * this_page)
 {
     this_page->va_page_addr = 0;
     this_page->appID = NOAPP;
@@ -1978,18 +1986,18 @@ bool DRAM_layout::free_up_page(page * this_page)
     free_pages[this_page->size]->remove(this_page);
 }
 
-bool mmu::update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID)
+void mmu::update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID)
 {
-    return m_DRAM->update_mapping(old_va, old_pa, new_va, new_pa, appID);
+    m_DRAM->update_mapping(old_va, old_pa, new_va, new_pa, appID);
 }
 
 
 // Update mapping for this VA page
-bool DRAM_layout::update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID)
+void DRAM_layout::update_mapping(new_addr_type old_va, new_addr_type old_pa, new_addr_type new_va, new_addr_type new_pa, int appID)
 {
     page * original = find_page_from_pa(old_pa); // Get the original page, before updating
 
-    if(original->va_page_addr != old_va) return false; // Something happen. The page does not have the same VA
+    if(original->va_page_addr != old_va) return; // Something happen. The page does not have the same VA
     
     //Allocate this in the new page location
     allocate_PA(new_va, new_pa, appID);
@@ -2017,13 +2025,13 @@ new_addr_type mmu::get_pa(new_addr_type addr, int appID, bool * fault, bool isRe
     //Check if this page has their own PT entries setup or not. (VA page seen before, VA not seen)
     if(va_to_page_mapping->find(searchID)!=va_to_page_mapping->end())
     {
-        if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Searching the map (searchID = %x) for physical page for VA = %x, app = %d. Not the first time access.\n",searchID, addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
+        //if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Searching the map (searchID = %x) for physical page for VA = %llx, app = %d. Not the first time access.\n",searchID, addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
         this_page = (*va_to_page_mapping)[searchID];
     }
     else
     {
-        new_addr_type result = (new_addr_type)(gpu_alloc->translate(appID,  (void*)((appID << 48) | addr))); //Note that at this point, addr should exist because addrdec.cc should have already handle any additional allocations
-        if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Searching the map (searchID = %x). Cannot find the physical page for VA = %x, app = %d. First time access. Allcating this page in the mmu to keep track of metadata\n",searchID, addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
+        new_addr_type result = (new_addr_type)(gpu_alloc->translate(appID,  (void*)(((uint64_t) appID << 48) | addr))); //Note that at this point, addr should exist because addrdec.cc should have already handle any additional allocations
+        //if(MERGE_DEBUG || ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Searching the map (searchID = %x). Cannot find the physical page for VA = %llx, app = %d. First time access. Allcating this page in the mmu to keep track of metadata\n",searchID, addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
         //Allocate this page
         allocate_PA((addr>>m_config->page_size) << m_config->page_size, (result >> m_config->page_size) << m_config->page_size, appID);
         //return result;
@@ -2045,8 +2053,8 @@ new_addr_type mmu::get_pa(new_addr_type addr, int appID, bool * fault, bool isRe
     m_DRAM->update_parent_metadata(this_page);
 
 
-    new_addr_type result = (new_addr_type)(gpu_alloc->translate(appID,  (void*)((appID << 48) | addr)));
-    if(MERGE_DEBUG) printf("Requesting the PA for VA = %x, appID = %d. Got %x, at address %x", appID, addr, result, &result);
+    new_addr_type result = (new_addr_type)(gpu_alloc->translate(appID,  (void*)(((uint64_t) appID << 48) | addr)));
+    //if(MERGE_DEBUG) printf("Requesting the PA for VA = %llx, appID = %d. Got %x, at address %x", appID, addr, result, &result);
 
     return result; //Get the correct physical address
 
@@ -2064,7 +2072,7 @@ new_addr_type mmu::old_get_pa(new_addr_type addr, int appID, bool * fault, bool 
     //Check if this page has their own PT entries setup or not. (VA page seen before, VA not seen)
     if(va_to_page_mapping->find(searchID)!=va_to_page_mapping->end())
     {
-        if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Searching the map (searchID = %x) for physical page for VA = %x, app = %d not in DRAM. Allocating a free page for this VA page next, cycle = %lld\n",searchID, addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
+        //if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Searching the map (searchID = %x) for physical page for VA = %llx, app = %d not in DRAM. Allocating a free page for this VA page next, cycle = %lld\n",searchID, addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
         this_page = (*va_to_page_mapping)[searchID];
     }
 
@@ -2074,16 +2082,17 @@ new_addr_type mmu::old_get_pa(new_addr_type addr, int appID, bool * fault, bool 
     {
         *fault = true;
         //Grab a free page
-        if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %x, app = %d not in DRAM. Allocating a free page for this VA page next, cycle = %lld. Adding searchID = %x to the map\n",addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle, searchID);
+        //if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %llx, app = %d not in DRAM. Allocating a free page for this VA page next, cycle = %lld. Adding searchID = %x to the map\n",addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle, searchID);
         this_page = m_DRAM->allocate_free_page(m_config->base_page_size,appID);
         this_page->va_page_addr = (addr >> m_config->page_size) << m_config->page_size;
-        if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %x, app = %d not in DRAM. Got a free page for this VA at PA = %x, VA base is %x (Occupy page for this app should contain this page), cycle = %lld. use_value = %d \n",addr, appID, this_page->starting_addr,this_page->va_page_addr, gpu_sim_cycle + gpu_tot_sim_cycle, this_page->used);
+        //if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %llx, app = %d not in DRAM. Got a free page for this VA at PA = %llx, VA base is %x (Occupy page for this app should contain this page), cycle = %lld. use_value = %d \n",addr, appID, this_page->starting_addr,this_page->va_page_addr, gpu_sim_cycle + gpu_tot_sim_cycle, this_page->used);
         // Assign the page to this VA, so that the next time this is VA is searched, lookup time is significantly faster
         (*va_to_page_mapping)[searchID] = this_page; 
     }
-    else if(this_page->used = false) //Page is not being used (invalid page). Set fault and mark the page as valid (note that this fault will be handled later when the mem_fetch reach DRAM.
+    //SJQ// used to be (this_page->used=false) , I think it's a mistake!
+    else if(this_page->used == false) //Page is not being used (invalid page). Set fault and mark the page as valid (note that this fault will be handled later when the mem_fetch reach DRAM.
     {
-        if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %x, app = %d is in DRAM, but not used. Cycle = %lld\n",addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
+        //if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Physical page for VA = %llx, app = %d is in DRAM, but not used. Cycle = %lld\n",addr, appID, gpu_sim_cycle + gpu_tot_sim_cycle);
         *fault = true;
         bool found_page = false;
         page * temp;
@@ -2108,7 +2117,7 @@ new_addr_type mmu::old_get_pa(new_addr_type addr, int appID, bool * fault, bool 
     }
     else
     {
-        if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Found physical page for VA = %x, app = %d in DRAM. Physical page is at 0x%x. Cycle = %lld\n",addr, appID, this_page->starting_addr, gpu_sim_cycle + gpu_tot_sim_cycle);
+        //if(ALLOC_DEBUG || ALLOC_DEBUG_SHORT) printf("Found physical page for VA = %llx, app = %d in DRAM. Physical page is at 0x%x. Cycle = %lld\n",addr, appID, this_page->starting_addr, gpu_sim_cycle + gpu_tot_sim_cycle);
         *fault = false;
     }
 
@@ -2120,7 +2129,7 @@ new_addr_type mmu::old_get_pa(new_addr_type addr, int appID, bool * fault, bool 
         this_page->last_accessed_time = gpu_sim_cycle + gpu_tot_sim_cycle; //Update last accessed time
     }
 
-    if(ALLOC_DEBUG) printf("Requesting the page with va = 0x%x, appID = %d, fault = %d, returning physical address 0x%x, starting page = 0x%x\n",addr, appID, *fault, this_page->starting_addr | (addr & this_page->size-1), this_page->starting_addr);
+    //if(ALLOC_DEBUG) printf("Requesting the page with va = 0x%x, appID = %d, fault = %d, returning physical address 0x%x, starting page = 0x%x\n",addr, appID, *fault, this_page->starting_addr | (addr & this_page->size-1), this_page->starting_addr);
     return (this_page->starting_addr | (addr & (this_page->size-1))); 
 }
 
@@ -2167,41 +2176,41 @@ int mmu::coalesce_page(page * this_page)
 
 void mmu::set_L2_tlb(tlb_tag_array * L2TLB)
 {
-   printf("Setting L2 TLB for the MMU at address = %x\n", L2TLB);
+   printf("Setting L2 TLB for the MMU at address = %llx\n", (unsigned long long ) L2TLB);
    l2_tlb = L2TLB;
    //Sending all the promote/demote requests 
    while(!promoted_list->empty())
    {
-        if(PROMOTE_DEBUG) printf("Send a pending promotion call for VA = %x, appID = %d.\n", promoted_list->front().first, promoted_list->front().second);
+        if(PROMOTE_DEBUG) printf("Send a pending promotion call for VA = %llx, appID = %d.\n", promoted_list->front().first, promoted_list->front().second);
         if(m_config->enable_page_coalescing) l2_tlb->promotion(promoted_list->front().first, promoted_list->front().second);
         //if(m_config->enable_page_coalescing) l2_tlb->promotion(promoted_list->front().first, App::get_app_id(promoted_list->front().second));
         promoted_list->pop_front();
    }
    while(!demoted_list->empty())
    {
-        if(PROMOTE_DEBUG) printf("Send a pending demotion call for VA = %x, appID = %d\n", demoted_list->front().first, demoted_list->front().second);
+        if(PROMOTE_DEBUG) printf("Send a pending demotion call for VA = %llx, appID = %d\n", demoted_list->front().first, demoted_list->front().second);
         if(m_config->enable_page_coalescing) l2_tlb->demote_page(demoted_list->front().first, demoted_list->front().second);
         demoted_list->pop_front();
    }
 }
 
-int mmu::promote_page(new_addr_type va, int appID)
+void mmu::promote_page(new_addr_type va, int appID)
 {
     if(need_init || l2_tlb == NULL)
     {
-        if(PROMOTE_DEBUG) printf("MMU got a promotion call during INIT for VA = %x, appID = %d.\n", va, appID);
+        if(PROMOTE_DEBUG) printf("MMU got a promotion call during INIT for VA = %llx, appID = %d.\n", va, appID);
         promoted_list->push_back(std::pair<new_addr_type,int>(va,appID));
     }
     else{
     // Mark the page metadata by calling coalesce_page(page)
     // Same sa demote page, tlb will handle this call so that it can check MMU's promotion/demotion return status
 //    unsigned searchID = ((va>>m_config->page_size) << m_config->page_size) | appID;
-//    coalesce_page((*va_to_page_mapping)[searchID]);
+//    coalesce_page((*va_to_page_mapping)[searchID])
 
         // Then update the promoted page list in tlb.cc
-        if(PROMOTE_DEBUG) printf("MMU got a promotion call for VA = %x, appID = %d\n", va, appID);
-        if(m_config->enable_page_coalescing) return l2_tlb->promotion(va, appID);
-        else return 0;
+        if(PROMOTE_DEBUG) printf("MMU got a promotion call for VA = %llx, appID = %d\n", va, appID);
+        if(m_config->enable_page_coalescing)  l2_tlb->promotion(va, appID);
+    
     }
 }
 
@@ -2209,8 +2218,9 @@ int mmu::demote_page(new_addr_type va, int appID)
 {
     if(need_init || l2_tlb == NULL)
     {
-        if(PROMOTE_DEBUG) printf("MMU got a demotion call during INIT for VA = %x, appID = %d\n", va, appID);
+        //if(PROMOTE_DEBUG) printf("MMU got a demotion call during INIT for VA = %llx, appID = %d\n", va, appID);
         demoted_list->push_back(std::pair<new_addr_type,int>(va,appID));
+        return 0;
     }
     else
     {
@@ -2220,7 +2230,7 @@ int mmu::demote_page(new_addr_type va, int appID)
 //    demote_page((*va_to_page_mapping)[searchID]); //Note: No need to do this as tlb will handle it. So, just call tlb->demote page
 
     // Then update the promoted page list in tlb.cc
-        if(PROMOTE_DEBUG) printf("MMU got a demotion call for VA = %x, appID = %d.\n", va, appID);
+        if(PROMOTE_DEBUG) printf("MMU got a demotion call for VA = %llx, appID = %d.\n", va, appID);
         if(m_config->enable_page_coalescing) return l2_tlb->demote_page(va, appID);
         else return 0;
     }

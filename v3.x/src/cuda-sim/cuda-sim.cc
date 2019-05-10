@@ -449,7 +449,7 @@ class PMM : public Abstract_PMM {
       bool full() {
          return unused_pages == 0;
       }
-      bool fragmented() {
+      bool fragmented() {//A sjq:TODO , what's that?
          return chunk_num == max_uint64;
       }
       uint64_t getPPN(Log_Info info, uint64_t page_num) {
@@ -597,7 +597,7 @@ class PMM : public Abstract_PMM {
 
    class Vspace_Data {
       public:
-      std::unordered_map<uint64_t,Virtual_Chunk*> virt_to_phys;
+      std::unordered_map<uint64_t,Virtual_Chunk*> virt_to_phys;//A: sjq,TODO need to review
       std::unordered_set<Virtual_Chunk*> reserved_chunks;
       std::unordered_set<Shared_Chunk*> fragmented_chunks;
       Vspace_Data() : virt_to_phys(), reserved_chunks(), fragmented_chunks() {}
@@ -728,8 +728,9 @@ class PMM : public Abstract_PMM {
       printf("%llu huge pages / %llu eligible regions\n", huge_pages, eligible_regions);
    }
 
-   void allocate(uint64_t ID, uint64_t first_vpn, uint64_t num_pages) {
-      if (ID_to_data[ID] == nullptr) ID_to_data[ID] = new Vspace_Data();
+   void allocate(uint64_t ID, uint64_t first_vpn, uint64_t num_pages) {//A: sjq,  first_vpn is the start page number.
+      if (ID_to_data[ID] == nullptr) 
+         ID_to_data[ID] = new Vspace_Data();
       Vspace_Data* data = ID_to_data[ID];
       // vpn = virtual page number
       for (uint64_t vpn = first_vpn; vpn < first_vpn + num_pages; ++vpn) {
@@ -744,7 +745,7 @@ class PMM : public Abstract_PMM {
                chunk = new Virtual_Chunk(hps, vcn*hps*hub->page_size, free_chunks.back());
                free_chunks.pop_back();
                data->reserved_chunks.insert(chunk);
-            } else if (virtual_offset == 0 && vpn + hps <= first_vpn + num_pages) {
+            } else if (virtual_offset == 0 && vpn + hps <= first_vpn + num_pages) {//means no free chunks
                // try extra hard to make continuous physical region because it will be nice
                const uint64_t chunk_num = coalesce(ID);
                if (chunk_num != max_uint64) {
@@ -959,11 +960,11 @@ class VMM : public Abstract_VMM {
       printf("%llu non-continuous bytes used / %llu continuous bytes used\n", in_use, end_addr);
    }
 
-   void* allocate(uint64_t bytes) {
+   void* allocate(uint64_t bytes) {//A: sjq ,   each application will have their own class!
       if (bytes == 0) return (void*)end_addr;
       if ((hub->round_malloc_to != 0) && (bytes % hub->round_malloc_to != 0)) {
          bytes += hub->round_malloc_to - (bytes % hub->round_malloc_to);
-      }
+      }//A: sjq,  bytes must be multiple to 256
       in_use += bytes;
 
       Range allocated_range;
@@ -984,7 +985,7 @@ class VMM : public Abstract_VMM {
          allocated_range = Range(end_addr, end_addr + bytes);
          end_addr += bytes;
       }
-      it = used_ranges.insert(allocated_range).first;
+      it = used_ranges.insert(allocated_range).first;// A:sjq , used_ranges are compared using start point
       // request physical backings for new pages
       int64_t first_page = allocated_range.start / hub->page_size;
       int64_t last_page = (allocated_range.end-1) / hub->page_size;
@@ -1111,7 +1112,7 @@ void* Hub::translate(uint64_t ID, void* vaddr) {
    const uint64_t fixed_vaddr = uint64_t(vaddr) & mask;
    const uint64_t vpn = uint64_t(fixed_vaddr) / page_size;
    uint64_t phys_page_addr;
-   if (uint64_t(vaddr) & (uint64_t{1} << 63)) {
+   if (uint64_t(vaddr) & (uint64_t{1} << 63)) {//vaddr最高位是1
       phys_page_addr = pmm->translate(ID, vpn);
    } else {
       //printf("translating non-malloc virtual address %p\n", vaddr);
